@@ -33,6 +33,7 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel, onFolderU
   const [duplicates, setDuplicates] = useState<Duplicate[] | null>(null)
   const [nameError, setNameError] = useState(false)
   const [addingToFolderTabId, setAddingToFolderTabId] = useState<number | null>(null)
+  const [closeConfirm, setCloseConfirm] = useState<{ folder: Folder; tabIds: number[] } | null>(null)
 
   const nameRef = useRef<HTMLInputElement>(null)
 
@@ -43,7 +44,7 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel, onFolderU
           (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('about:'),
         )
         setTabs(usable)
-        setSelectedIds(new Set(usable.map((t) => t.id!).filter(Boolean)))
+        setSelectedIds(new Set())
       })
       .finally(() => setLoadingTabs(false))
 
@@ -138,12 +139,23 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel, onFolderU
         isFavorite: false,
         tabs: tabsToSave,
       })
+      // Data is safe in IDB — now ask before closing tabs
       const tabIds = selectedTabs.map((t) => t.id!)
-      await closeTabs(tabIds)
-      onSaved(folder)
+      setCloseConfirm({ folder, tabIds })
     } finally {
       setSaving(false)
     }
+  }
+
+  async function confirmClose() {
+    if (!closeConfirm) return
+    await closeTabs(closeConfirm.tabIds)
+    onSaved(closeConfirm.folder)
+  }
+
+  function skipClose() {
+    if (!closeConfirm) return
+    onSaved(closeConfirm.folder)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -393,6 +405,39 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel, onFolderU
             performSave()
           }}
         />
+      )}
+
+      {closeConfirm && (
+        <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 z-10">
+          <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <span className="text-green-500 text-xl mt-0.5" aria-hidden>✓</span>
+              <div>
+                <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                  "{closeConfirm.folder.name}" saved
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Close {closeConfirm.tabIds.length}{' '}
+                  {closeConfirm.tabIds.length === 1 ? 'tab' : 'tabs'} to free up RAM?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={skipClose}
+                className="flex-1 text-xs font-medium py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Keep tabs open
+              </button>
+              <button
+                onClick={confirmClose}
+                className="flex-1 text-xs font-medium py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              >
+                Close tabs
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
