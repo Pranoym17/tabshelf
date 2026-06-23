@@ -4,6 +4,7 @@ import { getAllFolders } from '../storage/folders'
 import { sortFolders } from '../shared/utils'
 import FolderList from './components/FolderList'
 import SaveFlow from './components/SaveFlow'
+import FolderDetail from './components/FolderDetail'
 
 type View = 'list' | 'save' | 'detail'
 
@@ -19,6 +20,8 @@ export default function Popup() {
       setLoading(false)
     })
   }, [])
+
+  const selectedFolder = folders.find((f) => f.id === selectedId) ?? null
 
   function handleSelectFolder(id: string) {
     setSelectedId(id)
@@ -39,18 +42,46 @@ export default function Popup() {
     setView('list')
   }
 
+  function handleFolderUpdate(updated: Folder) {
+    setFolders((prev) => sortFolders(prev.map((f) => (f.id === updated.id ? updated : f))))
+  }
+
+  function handleFolderDelete(id: string) {
+    setFolders((prev) => prev.filter((f) => f.id !== id))
+    setSelectedId(null)
+    setView('list')
+  }
+
   return (
     <div className="w-[400px] h-[560px] flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
         {view !== 'list' ? (
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
-            <span aria-hidden>←</span>
-            <span>Back</span>
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={handleBack}
+              className="shrink-0 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              <span aria-hidden>←</span>
+              <span>Back</span>
+            </button>
+            {view === 'detail' && selectedFolder && (
+              <>
+                <span className="text-gray-300 dark:text-gray-700">/</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                  {selectedFolder.name}
+                </span>
+              </>
+            )}
+            {view === 'save' && (
+              <>
+                <span className="text-gray-300 dark:text-gray-700">/</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Save tabs
+                </span>
+              </>
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <span className="text-lg" aria-hidden>🗂️</span>
@@ -97,15 +128,12 @@ export default function Popup() {
             onSaved={handleSaved}
             onCancel={handleBack}
           />
-        ) : view === 'detail' && selectedId ? (
-          // Placeholder — wired in Step 7
-          <div className="flex-1 flex items-center justify-center p-6">
-            <p className="text-sm text-gray-400 dark:text-gray-500 text-center">
-              Folder detail coming in Step 7
-              <br />
-              <span className="font-mono text-xs">{selectedId}</span>
-            </p>
-          </div>
+        ) : view === 'detail' && selectedFolder ? (
+          <FolderDetail
+            folder={selectedFolder}
+            onUpdate={handleFolderUpdate}
+            onDelete={handleFolderDelete}
+          />
         ) : null}
       </main>
     </div>
