@@ -1,7 +1,7 @@
 import type { BackgroundMessage, GetCurrentTabsResponse } from '../types'
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('TabShelf installed')
+  chrome.action.setBadgeBackgroundColor({ color: '#6366f1' })
 })
 
 // Keyboard shortcut: open the popup so the user can name and save tabs.
