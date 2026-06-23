@@ -28,14 +28,17 @@ function SkeletonCards() {
 export default function Popup() {
   const [folders, setFolders] = useState<Folder[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [view, setView] = useState<View>('list')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   useEffect(() => {
-    getAllFolders().then((f) => {
-      setFolders(sortFolders(f))
-      setLoading(false)
-    })
+    getAllFolders()
+      .then((f) => {
+        setFolders(sortFolders(f))
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false))
   }, [])
 
   // Keep extension icon badge in sync with folder count
@@ -137,6 +140,18 @@ export default function Popup() {
       <main className="flex flex-col flex-1 overflow-hidden">
         {loading ? (
           <SkeletonCards />
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center flex-1 gap-3 px-6 text-center">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Could not open storage. Try reloading the extension.
+            </p>
+            <button
+              onClick={() => { setLoadError(false); setLoading(true); getAllFolders().then((f) => { setFolders(sortFolders(f)); setLoading(false) }).catch(() => { setLoadError(true); setLoading(false) }) }}
+              className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Retry
+            </button>
+          </div>
         ) : view === 'list' ? (
           <FolderList
             folders={folders}
@@ -148,6 +163,7 @@ export default function Popup() {
             existingFolders={folders}
             onSaved={handleSaved}
             onCancel={handleBack}
+            onFolderUpdate={handleFolderUpdate}
           />
         ) : view === 'detail' && selectedFolder ? (
           <FolderDetail

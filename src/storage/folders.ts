@@ -1,15 +1,21 @@
 import { v4 as uuidv4 } from 'uuid'
-import { openDB, FOLDERS_STORE, idbRequest } from './db'
+import { openDB, FOLDERS_STORE } from './db'
 import type { Folder, PartialFolder } from '../types'
 
 function withStore<T>(
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
-  return openDB().then((db) => {
-    const tx = db.transaction(FOLDERS_STORE, mode)
-    return idbRequest(fn(tx.objectStore(FOLDERS_STORE)))
-  })
+  return openDB().then(
+    (db) =>
+      new Promise<T>((resolve, reject) => {
+        const tx = db.transaction(FOLDERS_STORE, mode)
+        const req = fn(tx.objectStore(FOLDERS_STORE))
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+        tx.onerror = () => reject(tx.error)
+      }),
+  )
 }
 
 export function getAllFolders(): Promise<Folder[]> {

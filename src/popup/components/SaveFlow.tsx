@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Folder, Tab } from '../../types'
-import { createFolder } from '../../storage/folders'
+import { createFolder, updateFolder } from '../../storage/folders'
 import { getCurrentTabs, closeTabs } from '../../shared/messaging'
 import ColorPicker, { DEFAULT_COLOR } from './ColorPicker'
 import DuplicateWarning from './DuplicateWarning'
@@ -15,9 +15,10 @@ interface Props {
   existingFolders: Folder[]
   onSaved: (folder: Folder) => void
   onCancel: () => void
+  onFolderUpdate?: (folder: Folder) => void
 }
 
-export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) {
+export default function SaveFlow({ existingFolders, onSaved, onCancel, onFolderUpdate }: Props) {
   const [tabs, setTabs] = useState<chrome.tabs.Tab[]>([])
   const [loadingTabs, setLoadingTabs] = useState(true)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -31,13 +32,13 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
   const [saving, setSaving] = useState(false)
   const [duplicates, setDuplicates] = useState<Duplicate[] | null>(null)
   const [nameError, setNameError] = useState(false)
+  const [addingToFolderTabId, setAddingToFolderTabId] = useState<number | null>(null)
 
   const nameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     getCurrentTabs()
       .then((chromeTabs) => {
-        // Filter out tabs with no usable URL
         const usable = chromeTabs.filter(
           (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('about:'),
         )
@@ -83,14 +84,38 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
       if (!tab.url) continue
       for (const folder of existingFolders) {
         if (folder.tabs.some((t) => t.url === tab.url)) {
-          results.push({
-            title: tab.title ?? tab.url,
-            folderName: folder.name,
-          })
+          results.push({ title: tab.title ?? tab.url, folderName: folder.name })
         }
       }
     }
     return results
+  }
+
+  async function handleAddToFolder(chromeTab: chrome.tabs.Tab, folder: Folder) {
+    setAddingToFolderTabId(null)
+    const newTab: Tab = {
+      id: uuidv4(),
+      url: chromeTab.url!,
+      title: chromeTab.title ?? chromeTab.url!,
+      faviconUrl: chromeTab.favIconUrl ?? null,
+    }
+    // Skip if URL already exists in the target folder
+    const updatedTabs = folder.tabs.some((t) => t.url === newTab.url)
+      ? folder.tabs
+      : [...folder.tabs, newTab]
+    const updatedFolder: Folder = { ...folder, tabs: updatedTabs }
+    await updateFolder({ id: folder.id, tabs: updatedFolder.tabs })
+    onFolderUpdate?.(updatedFolder)
+
+    if (chromeTab.id != null) {
+      await closeTabs([chromeTab.id])
+    }
+    setTabs((prev) => prev.filter((t) => t.id !== chromeTab.id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (chromeTab.id != null) next.delete(chromeTab.id)
+      return next
+    })
   }
 
   async function performSave() {
@@ -144,10 +169,7 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
 
   return (
     <div className="relative flex flex-col flex-1 overflow-hidden">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col flex-1 overflow-hidden"
-      >
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             Save as project
@@ -162,20 +184,13 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
               ref={nameRef}
               type="text"
               value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                setNameError(false)
-              }}
+              onChange={(e) => { setName(e.target.value); setNameError(false) }}
               placeholder="e.g. PC Build Research"
               className={`w-full text-sm px-3 py-2 rounded-lg border bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors ${
-                nameError
-                  ? 'border-red-400 dark:border-red-500'
-                  : 'border-gray-200 dark:border-gray-700'
+                nameError ? 'border-red-400 dark:border-red-500' : 'border-gray-200 dark:border-gray-700'
               }`}
             />
-            {nameError && (
-              <p className="text-xs text-red-500 mt-1">Name is required</p>
-            )}
+            {nameError && <p className="text-xs text-red-500 mt-1">Name is required</p>}
           </div>
 
           {/* Color */}
@@ -276,9 +291,9 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
                   const id = tab.id!
                   const checked = selectedIds.has(id)
                   return (
-                    <label
+                    <div
                       key={id}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer transition-colors ${
+                      className={`flex items-center gap-2 px-2.5 py-1.5 transition-colors ${
                         checked
                           ? 'bg-white dark:bg-gray-900'
                           : 'bg-gray-50 dark:bg-gray-800/50 opacity-60'
@@ -300,10 +315,43 @@ export default function SaveFlow({ existingFolders, onSaved, onCancel }: Props) 
                           }}
                         />
                       )}
-                      <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
+                      <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate min-w-0">
                         {tab.title ?? tab.url}
                       </span>
-                    </label>
+                      {existingFolders.length > 0 && (
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setAddingToFolderTabId(addingToFolderTabId === id ? null : id)
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 px-1 py-0.5 rounded leading-none"
+                            title="Add to existing folder"
+                          >
+                            +folder
+                          </button>
+                          {addingToFolderTabId === id && (
+                            <div className="absolute right-0 bottom-full mb-1 z-20 w-44 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden">
+                              {existingFolders.map((f) => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => handleAddToFolder(tab, f)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-left"
+                                >
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: f.color }}
+                                  />
+                                  <span className="truncate">{f.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>

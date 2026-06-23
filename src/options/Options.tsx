@@ -197,6 +197,7 @@ function StatsOverview({ folders }: { folders: Folder[] }) {
 export default function Options() {
   const [folders, setFolders] = useState<Folder[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [query, setQuery] = useState('')
@@ -204,10 +205,12 @@ export default function Options() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
   useEffect(() => {
-    getAllFolders().then((f) => {
-      setFolders(sortFolders(f))
-      setLoading(false)
-    })
+    getAllFolders()
+      .then((f) => {
+        setFolders(sortFolders(f))
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false))
   }, [])
 
   const allTags = useMemo(
@@ -293,6 +296,10 @@ export default function Options() {
                 />
               ))}
             </div>
+          ) : loadError ? (
+            <p className="text-xs text-red-400 dark:text-red-500 text-center py-8 px-3">
+              Storage unavailable. Reload the extension to retry.
+            </p>
           ) : filtered.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">
               No folders match

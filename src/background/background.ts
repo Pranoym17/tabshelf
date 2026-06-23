@@ -57,14 +57,9 @@ async function openUrls(urls: string[], newWindow: boolean): Promise<void> {
     return
   }
 
-  const createdIds: number[] = []
-  for (const url of urls) {
-    const tab = await chrome.tabs.create({ url, active: false })
-    if (tab.id != null) createdIds.push(tab.id)
-  }
-
-  // Focus the first restored tab
-  if (createdIds.length > 0) {
-    await chrome.tabs.update(createdIds[0], { active: true })
+  const created = await Promise.all(urls.map((url) => chrome.tabs.create({ url, active: false })))
+  const firstId = created[0]?.id
+  if (firstId != null) {
+    await chrome.tabs.update(firstId, { active: true })
   }
 }

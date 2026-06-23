@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 import type { Folder, FolderStatus, Tab } from '../types'
 import { updateFolder, deleteFolder, recordFolderOpened } from '../storage/folders'
 import { openUrls } from '../shared/messaging'
@@ -159,7 +158,7 @@ export default function OptionsDetail({ folder, onUpdate, onDelete }: Props) {
 
           {/* Stats row */}
           <div className="flex flex-wrap gap-3 text-xs text-gray-400 dark:text-gray-500">
-            <span>{folder.tabs.length} tabs</span>
+            <span>{tabs.length} tabs</span>
             <span>·</span>
             <span>opened {folder.openCount} times</span>
             <span>·</span>
