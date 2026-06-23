@@ -3,6 +3,7 @@ import type { Folder } from '../types'
 import { getAllFolders } from '../storage/folders'
 import { sortFolders } from '../shared/utils'
 import FolderList from './components/FolderList'
+import SaveFlow from './components/SaveFlow'
 
 type View = 'list' | 'save' | 'detail'
 
@@ -30,6 +31,11 @@ export default function Popup() {
 
   function handleBack() {
     setSelectedId(null)
+    setView('list')
+  }
+
+  function handleSaved(folder: Folder) {
+    setFolders((prev) => sortFolders([...prev, folder]))
     setView('list')
   }
 
@@ -86,12 +92,11 @@ export default function Popup() {
             onSaveClick={handleSaveClick}
           />
         ) : view === 'save' ? (
-          // Placeholder — wired in Step 6
-          <div className="flex-1 flex items-center justify-center p-6">
-            <p className="text-sm text-gray-400 dark:text-gray-500 text-center">
-              Save flow coming in Step 6
-            </p>
-          </div>
+          <SaveFlow
+            existingFolders={folders}
+            onSaved={handleSaved}
+            onCancel={handleBack}
+          />
         ) : view === 'detail' && selectedId ? (
           // Placeholder — wired in Step 7
           <div className="flex-1 flex items-center justify-center p-6">
